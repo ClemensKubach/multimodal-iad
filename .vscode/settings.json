@@ -1,0 +1,16 @@
+{
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "always"
+        }
+    },
+    "python.languageServer": "None",
+    // "ruff.path": [
+    //     ".venv/bin/ruff"
+    // ],
+    "python.analysis.extraPaths": [
+        "/workspaces/multimodal-iad/.venv/lib/python3.10/site-packages"
+    ]
+    // "python.languageServer": "Pylance"
+}
