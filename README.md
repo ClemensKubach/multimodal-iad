@@ -38,14 +38,14 @@ The project consists of two main components:
 - **Visual Explanations**: Display heatmaps highlighting anomalous areas
 - **Textual Explanations**: Generate human-readable explanations using multimodal LLMs
 - **Audio Feedback**: Provide audio alerts and explanations for hands-free operation
-- **User-friendly Interface**: Built with PySide6 for a responsive and intuitive GUI
+- **User-friendly Interface**: Built with PyQt6 for a responsive and intuitive GUI
 
 ## Task List
 
 ### Phase 1: Setup and Infrastructure
 - [x] Initialize project structure
 - [x] Set up basic dependencies
-- [x] Add PySide6 to dependencies
+- [x] Add PyQt6 to dependencies
 - [ ] Create comprehensive project documentation
 
 ### Phase 2: Core IAD Implementation
@@ -62,7 +62,7 @@ The project consists of two main components:
 - [ ] Create evaluation metrics for explanation quality
 
 ### Phase 4: GUI Development
-- [ ] Design basic PySide6 interface layout
+- [ ] Design basic PyQt6 interface layout
 - [ ] Implement input source selection
 - [ ] Create visualization panels for multimodal output
 - [ ] Develop settings and configuration interface
@@ -109,7 +109,7 @@ Basic usage will be:
 ## Dependencies
 
 - **anomalib** (≥2.0.0): Advanced anomaly detection library
-- **PySide6**: GUI framework
+- **PyQt6**: GUI framework
 - **Development tools**:
   - ruff (≥0.12.0): Python linter
 

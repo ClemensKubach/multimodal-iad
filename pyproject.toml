@@ -6,12 +6,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "anomalib[core]>=2.0.0",
-    "flet>=0.28.3",
     "hydra-zen>=0.15.0",
-    "kivy>=2.3.1",
-    "kivymd>=1.2.0",
     "pydantic>=2.11.7",
-    "pyside6>=6.9.1",
+    "pyqt6>=6.9.1",
     "torch>=2.7.1",
     "torchvision>=0.22.1",
 ]
