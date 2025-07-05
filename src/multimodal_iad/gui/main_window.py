@@ -158,7 +158,6 @@ class HeatmapWidget(FigureCanvas):
     def update_heatmap(
         self,
         item: NumpyImageItem | NumpyDepthItem,
-        title: str = "Anomaly Heatmap",
     ) -> None:
         """Update the heatmap display."""
         visualization = visualize_image_item(
