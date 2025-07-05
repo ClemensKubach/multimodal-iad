@@ -13,25 +13,6 @@ SRC_DIR = ROOT_DIR / "src"
 DATASETS_DIR = Path(os.environ.get("IAD_DATASETS_PATH", ROOT_DIR / "datasets"))
 RESULTS_DIR = ROOT_DIR / "results"
 
-# MVTec AD dataset
-MVTEC_CATEGORIES = [
-    "bottle",
-    "cable",
-    "capsule",
-    "carpet",
-    "grid",
-    "hazelnut",
-    "leather",
-    "metal_nut",
-    "pill",
-    "screw",
-    "tile",
-    "toothbrush",
-    "transistor",
-    "wood",
-    "zipper",
-]
-
 # Ensure the directory exists
 DATASETS_DIR.mkdir(exist_ok=True, parents=True)
 

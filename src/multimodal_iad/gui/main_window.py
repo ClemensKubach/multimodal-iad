@@ -1,12 +1,17 @@
 """Main window for the Multimodal-IAD PyQt6 GUI application."""
 
+import logging
 import sys
 from pathlib import Path
 
 import matplotlib as mpl
 import numpy as np
+from anomalib.data import NumpyImageItem
+from anomalib.data.dataclasses.numpy.depth import NumpyDepthItem
+from anomalib.visualization import visualize_image_item
+from PIL import Image
 from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QImage, QPixmap, QTextCursor
+from PyQt6.QtGui import QCloseEvent, QFont, QImage, QPixmap, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -27,16 +32,22 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from typing_extensions import override
 
 mpl.use("QtAgg")
+from anomalib.data.datasets.depth.mvtec_3d import CATEGORIES as MVTEC3D_CATEGORIES
+from anomalib.data.datasets.image.mvtecad import CATEGORIES as MVTECAD_CATEGORIES
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 from multimodal_iad.anomaly_detection.detector import (
     AnomalyDetector,
-    AnomalyDetectorResult,
+    SupportedAdModels,
+    SupportedDatamodules,
 )
-from multimodal_iad.utils.constants import DATASETS_DIR, GRAYSCALE_IMAGE_DIMS, MVTEC_CATEGORIES, RGB_IMAGE_DIMS
+from multimodal_iad.utils.constants import DATASETS_DIR, GRAYSCALE_IMAGE_DIMS
+
+logger = logging.getLogger(__name__)
 
 TOP_BOTTOM_SECTION_HEIGHT = 150
 
@@ -74,7 +85,8 @@ class TrainingThread(QThread):
             self.detector.train()
             self.progress.emit("Training completed!")
             self.finished.emit()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
+            logger.exception("Training failed.")
             self.error.emit(str(e))
 
 
@@ -145,14 +157,23 @@ class HeatmapWidget(FigureCanvas):
 
     def update_heatmap(
         self,
-        anomaly_map: np.ndarray | None,
+        item: NumpyImageItem | NumpyDepthItem,
         title: str = "Anomaly Heatmap",
     ) -> None:
         """Update the heatmap display."""
+        visualization = visualize_image_item(
+            item,  # type: ignore[reportUnknownReturnType]
+            overlay_fields=[("image", ["gt_mask", "pred_mask"])],
+            overlay_fields_config={
+                "gt_mask": {"mode": "contour", "color": (0, 255, 0), "alpha": 0.7},
+                "pred_mask": {"mode": "fill", "color": (255, 0, 0), "alpha": 0.3},
+            },
+        )
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        if anomaly_map is None:
+        # if item.anomaly_map is None:
+        if visualization is None:
             ax.text(
                 0.5,
                 0.5,
@@ -165,11 +186,14 @@ class HeatmapWidget(FigureCanvas):
             ax.set_xticks([])
             ax.set_yticks([])
         else:
-            if len(anomaly_map.shape) == RGB_IMAGE_DIMS:
-                anomaly_map = anomaly_map.squeeze()
+            # if len(item.anomaly_map.shape) == RGB_IMAGE_DIMS:
+            #     anomaly_map = item.anomaly_map.squeeze()
+            # else:
+            #     anomaly_map = item.anomaly_map
 
-            im = ax.imshow(anomaly_map, cmap="hot", interpolation="bilinear")
-            self.figure.colorbar(im, ax=ax, label="Anomaly Score")
+            # im = ax.imshow(anomaly_map, cmap="hot", interpolation="bilinear")
+            # self.figure.colorbar(im, ax=ax, label="Anomaly Score")
+            ax.imshow(visualization)
             ax.set_title(title, fontsize=14, fontweight="bold")
             ax.axis("off")
 
@@ -187,7 +211,7 @@ class MainWindow(QMainWindow):
         """Initialize the main window."""
         super().__init__()
         self.detector: AnomalyDetector | None = None
-        self.current_result: AnomalyDetectorResult | None = None
+        self.current_result: NumpyImageItem | NumpyDepthItem | None = None
         self.current_sample_index = 0
 
         self.status_bar: QStatusBar | None = self.statusBar()
@@ -279,7 +303,7 @@ class MainWindow(QMainWindow):
         )
 
         layout = QHBoxLayout()
-        layout.setSpacing(20)
+        layout.setSpacing(10)
 
         self._add_config_selectors(layout)
         self._add_action_buttons(layout)
@@ -296,6 +320,9 @@ class MainWindow(QMainWindow):
         model_label = QLabel("Model:")
         model_label.setStyleSheet("font-weight: normal;")
         label_layout.addWidget(model_label)
+        data_label = QLabel("Dataset:")
+        data_label.setStyleSheet("font-weight: normal;")
+        label_layout.addWidget(data_label)
         category_label = QLabel("Category:")
         category_label.setStyleSheet("font-weight: normal;")
         label_layout.addWidget(category_label)
@@ -307,21 +334,36 @@ class MainWindow(QMainWindow):
         # Selector column
         selector_layout = QVBoxLayout()
         self.model_combo = QComboBox()
-        self.model_combo.addItems(["Patchcore"])
+        self.model_combo.addItems([model.name for model in SupportedAdModels])
         self.model_combo.setMinimumWidth(min_combo_width)
         selector_layout.addWidget(self.model_combo)
+        self.datamodule_combo = QComboBox()
+        self.datamodule_combo.addItems([datamodule.name for datamodule in SupportedDatamodules])
+        self.datamodule_combo.setMinimumWidth(min_combo_width)
+        selector_layout.addWidget(self.datamodule_combo)
         self.category_combo = QComboBox()
-        self.category_combo.addItems(MVTEC_CATEGORIES)
         self.category_combo.setMinimumWidth(min_combo_width)
         selector_layout.addWidget(self.category_combo)
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Train & Predict", "Predict Only"])
+        self.mode_combo.addItems(["Train", "Predict"])
         self.mode_combo.setMinimumWidth(min_combo_width)
         selector_layout.addWidget(self.mode_combo)
         layout.addLayout(selector_layout)
 
+        self.datamodule_combo.currentIndexChanged.connect(self._update_categories)
+        self._update_categories()
+
         # Add a spacer item to the layout
         layout.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+
+    def _update_categories(self) -> None:
+        """Update the category dropdown based on the selected datamodule."""
+        selected_datamodule = SupportedDatamodules(self.datamodule_combo.currentText())
+        self.category_combo.clear()
+        if selected_datamodule == SupportedDatamodules.MVTecAD:
+            self.category_combo.addItems(MVTECAD_CATEGORIES)
+        elif selected_datamodule == SupportedDatamodules.MVTec3D:
+            self.category_combo.addItems(MVTEC3D_CATEGORIES)
 
     def _add_action_buttons(self, layout: QHBoxLayout) -> None:
         """Add action and navigation buttons to the layout."""
@@ -562,9 +604,11 @@ class MainWindow(QMainWindow):
             self.update_status(f"Initializing {model_name} for {category}...")
             self.detector = AnomalyDetector(
                 dataset_category=category,
+                datamodule=SupportedDatamodules(self.datamodule_combo.currentText()),
+                model=SupportedAdModels(model_name),
             )
 
-            if mode == "Train & Predict":
+            if mode == "Train":
                 # Start training in separate thread
                 self.execute_btn.setEnabled(False)
                 self.progress_bar.setVisible(True)
@@ -572,13 +616,13 @@ class MainWindow(QMainWindow):
 
                 self.training_thread = TrainingThread(self.detector)
                 self.training_thread.progress.connect(self.update_status)
-                self.training_thread.finished.connect(self.on_training_finished)
+                self.training_thread.finished.connect(self.on_training_only_finished)
                 self.training_thread.error.connect(self.on_training_error)
                 self.training_thread.start()
-            else:
-                self.update_status("Predict only mode - loading latest pre-trained model...")
+            elif mode == "Predict":
+                self.update_status("Predict mode - loading latest pre-trained model...")
                 if self.detector.load_checkpoint():
-                    self.on_training_finished()  # Use same logic as after training
+                    self.on_prediction_ready()
                     self.update_status(f"Loaded checkpoint: {self.detector.checkpoint_path}")
                 else:
                     self.update_status("No pre-trained model found for this configuration.")
@@ -588,20 +632,27 @@ class MainWindow(QMainWindow):
                         "Could not find a pre-trained model checkpoint for the selected configuration.",
                     )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
+            logger.exception("Failed to initialize detector:")
             QMessageBox.critical(self, "Error", f"Failed to initialize detector: {e}")
 
-    def on_training_finished(self) -> None:
-        """Handle training completion."""
+    def on_prediction_ready(self) -> None:
+        """Handle completion of setup for prediction."""
         self.progress_bar.setVisible(False)
         self.execute_btn.setEnabled(True)
         self.load_image_btn.setEnabled(True)
         self.prev_btn.setEnabled(True)
         self.next_btn.setEnabled(True)
 
-        self.update_status("Training completed! Showing test samples...")
+        self.update_status("Model ready for prediction. Showing test samples...")
         self.current_sample_index = 0
         self.show_sample()
+
+    def on_training_only_finished(self) -> None:
+        """Handle training completion for 'Train' mode."""
+        self.progress_bar.setVisible(False)
+        self.execute_btn.setEnabled(True)
+        self.update_status("Training completed! You can now switch to 'Predict' mode.")
 
     def on_training_error(self, error: str) -> None:
         """Handle training error."""
@@ -625,7 +676,8 @@ class MainWindow(QMainWindow):
             # Update displays
             self.update_displays()
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
+            logger.exception("Failed to load sample:")
             QMessageBox.critical(self, "Error", f"Failed to load sample: {e}")
 
     def show_previous_sample(self) -> None:
@@ -650,10 +702,11 @@ class MainWindow(QMainWindow):
 
         if file_path and self.detector and self.detector.trained:
             try:
-                self.current_result = self.detector.predict_image(file_path)
+                self.current_result = self.detector.predict_image(image_path=file_path)
                 self.update_displays()
                 self.update_status(f"Loaded custom image: {Path(file_path).name}")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
+                logger.exception("Failed to process image:")
                 QMessageBox.critical(self, "Error", f"Failed to process image: {e}")
 
     def update_displays(self) -> None:
@@ -662,7 +715,12 @@ class MainWindow(QMainWindow):
             return
 
         # Update input image
-        self.input_image_label.set_image(self.current_result.image)
+        if self.current_result.image is None or self.current_result.image_path is None:
+            msg = "Image or path is None"
+            raise ValueError(msg)
+
+        image = Image.open(self.current_result.image_path).convert("RGB")
+        self.input_image_label.set_image(np.array(image))
         if self.current_result.image_path:
             self.image_path_label.setText(f"Path: {Path(self.current_result.image_path).relative_to(DATASETS_DIR)}")
         else:
@@ -689,9 +747,7 @@ class MainWindow(QMainWindow):
 
         self.pred_label_value.setStyleSheet(f"font-size: 18px; color: {color}; font-weight: bold;")
 
-        # Update heatmap
-        anomaly_map = self.current_result.anomaly_map
-        self.heatmap_widget.update_heatmap(anomaly_map)
+        self.heatmap_widget.update_heatmap(self.current_result)
 
         # Update explanation
         if self.detector and self.current_result:
@@ -702,7 +758,7 @@ class MainWindow(QMainWindow):
         """Update the status bar message."""
         if self.status_bar:
             self.status_bar.showMessage(message)
-        print(message)
+        logger.info(message)
 
     def setup_logging(self) -> None:
         """Redirect stdout and stderr to the log widget."""
@@ -710,7 +766,15 @@ class MainWindow(QMainWindow):
         self.log_stream.new_text.connect(self.append_log_text)
         sys.stdout = self.log_stream
         sys.stderr = self.log_stream
-        print("--- Log started ---")
+
+        logging.basicConfig(
+            stream=sys.stdout,
+            level=logging.INFO,
+            format="%(asctime)s [%(levelname)s]: %(message)s",
+            datefmt="%H:%M:%S",
+            force=True,
+        )
+        logger.info("--- Log started ---")
 
     def append_log_text(self, text: str) -> None:
         """Append text to the log output widget."""
@@ -720,7 +784,8 @@ class MainWindow(QMainWindow):
         self.log_output_text.setTextCursor(cursor)
         self.log_output_text.ensureCursorVisible()
 
-    def closeEvent(self, event) -> None:
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
         """Restore stdout/stderr on close."""
         sys.stdout = self._original_stdout
         sys.stderr = self._original_stderr

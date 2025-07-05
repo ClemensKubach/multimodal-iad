@@ -2,6 +2,39 @@
 
 Multimodal System Providing Textual Explanations for Image Anomaly Detection
 
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10 or higher
+- uv package manager (pip is also possible)
+
+### Installation
+```bash
+git clone https://github.com/open-edge-platform/multimodal-iad.git
+cd multimodal-iad
+```
+
+Setting the environment variable `GIT_LFS_SKIP_SMUDGE=1` is necessary because of an anomalib install bug.
+Install application and dependencies:
+```bash
+GIT_LFS_SKIP_SMUDGE=1 uv sync
+```
+
+### Usage
+Run the GUI application:
+```bash
+uv run multimodal-iad
+```
+
+## Development
+Note that currently anomalib f1_adaptive_threshold is not working as expected (Index out of bounds error).
+Locally, there is a quickfix in the code, but the underlying issue should be fixed in anomalib.
+Maybe, fork it later.
+
+
+
 ## Project Overview
 
 This project aims to develop an interface for applying Image Anomaly Detection (IAD) to multimodal input and offering multimodal explanations as part of the output. 

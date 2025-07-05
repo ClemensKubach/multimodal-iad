@@ -1,13 +1,23 @@
 """Anomaly detection model abstraction for multimodal-IAD using anomalib 2.0 models."""
 
 import logging
+from enum import auto
 from pathlib import Path
 
 import numpy as np
-from anomalib.data import MVTec3D, MVTecAD, PredictDataset
+from anomalib.data import (
+    DepthBatch,
+    DepthItem,
+    ImageBatch,
+    ImageItem,
+    MVTec3D,
+    MVTecAD,
+    NumpyImageItem,
+    PredictDataset,
+)
+from anomalib.data.dataclasses.numpy.depth import NumpyDepthItem
 from anomalib.engine import Engine
 from anomalib.models.image.patchcore import Patchcore
-from PIL import Image
 from pydantic import BaseModel
 from strenum import StrEnum
 
@@ -19,14 +29,14 @@ logger = logging.getLogger(__name__)
 class SupportedAdModels(StrEnum):
     """Supported anomaly detection models."""
 
-    Patchcore = "patchcore"
+    Patchcore = auto()
 
 
 class SupportedDatamodules(StrEnum):
     """Supported datamodules."""
 
-    MVTecAD = "mvtec-ad"
-    MVTec3D = "mvtec_3d_anomaly_detection"
+    MVTecAD = auto()
+    MVTec3D = auto()
 
 
 class AnomalyDetectorResult(BaseModel):
@@ -85,7 +95,7 @@ class AnomalyDetector:
             )
         elif self.selected_datamodule == SupportedDatamodules.MVTec3D:
             self.datamodule = MVTec3D(
-                root=self.datasets_dir / "mvtec-3d",
+                root=self.datasets_dir / "mvtec_3d_anomaly_detection",
                 category=self.dataset_category,
                 train_batch_size=32,
                 eval_batch_size=32,
@@ -102,30 +112,24 @@ class AnomalyDetector:
         model_name = self.model.__class__.__name__
         datamodule_class_name = self.datamodule.__class__.__name__
 
-        # Correct path structure based on user feedback.
-        # Example: results/Patchcore/MVTecAD/bottle/latest/weights/lightning/model.ckpt
         experiment_path = self.results_dir / model_name / datamodule_class_name / self.dataset_category
 
-        # The 'latest' directory is a symlink to the latest version.
         latest_version_dir = experiment_path / "latest"
 
         if not latest_version_dir.exists():
             logger.warning("No 'latest' checkpoint directory found in %s", experiment_path)
             return None
 
-        # Checkpoint is in weights/lightning/
         checkpoints_dir = latest_version_dir / "weights" / "lightning"
         if not checkpoints_dir.exists():
             logger.warning("Weights directory not found in %s", checkpoints_dir)
             return None
 
-        # Find the checkpoint file (usually named 'model.ckpt' or similar)
         checkpoints = list(checkpoints_dir.glob("*.ckpt"))
         if not checkpoints:
             logger.warning("No checkpoint file found in %s", checkpoints_dir)
             return None
 
-        # Assuming there is one .ckpt file, or we take the first one
         return checkpoints[0]
 
     def load_checkpoint(self) -> bool:
@@ -164,7 +168,6 @@ class AnomalyDetector:
         self.datamodule.setup()
         self.engine.fit(datamodule=self.datamodule, model=self.model)
         self.trained = True
-        logger.info("Training completed!")
 
     def test(self) -> dict[str, float]:
         """Test the model and return metrics."""
@@ -181,11 +184,14 @@ class AnomalyDetector:
         first_dataloader_results = test_results[0]
         return dict(first_dataloader_results)
 
-    def predict_image(self, image_path: str) -> AnomalyDetectorResult | None:
+    def predict_image(
+        self, sample: ImageItem | DepthItem | None = None, image_path: str | None = None
+    ) -> NumpyImageItem | NumpyDepthItem | None:
         """Apply anomaly detection for a single image.
 
         Args:
-            image_path: Path to the image file
+            sample: Sample from the dataset.
+            image_path: Path to the image file.
 
         Returns:
             Dictionary containing prediction results
@@ -195,8 +201,16 @@ class AnomalyDetector:
             msg = "Model must be trained first!"
             raise RuntimeError(msg)
 
+        if sample is None and image_path is None:
+            msg = "Either sample or image_path must be provided"
+            raise ValueError(msg)
+
+        image_path = sample.image_path if sample is not None and sample.image_path is not None else image_path
+        if image_path is None:
+            msg = "Image path is required"
+            raise ValueError(msg)
+
         logger.info("Predicting image %s...", image_path)
-        image = Image.open(image_path).convert("RGB")
         dataset = PredictDataset(
             path=image_path,
             image_size=(256, 256),
@@ -214,19 +228,24 @@ class AnomalyDetector:
             if isinstance(pred, list):
                 pred = pred[0]
 
-            # Extract results
-            return AnomalyDetectorResult(
-                image=np.array(image),
-                pred_label=pred.pred_label.item() if hasattr(pred, "pred_label") else 0,
-                pred_score=pred.pred_score.item() if hasattr(pred, "pred_score") else 0.0,
-                anomaly_map=pred.anomaly_map.cpu().numpy() if hasattr(pred, "anomaly_map") else None,
-                pred_mask=pred.pred_mask.cpu().numpy() if hasattr(pred, "pred_mask") else None,
-                image_path=image_path,
-            )
+            if isinstance(pred, ImageBatch | DepthBatch):
+                item = pred.items[0]
+            elif isinstance(pred, ImageItem | DepthItem):
+                item = pred
+            else:
+                msg = f"Unsupported prediction type: {type(pred)}"
+                raise ValueError(msg)
+
+            # augmentate the predictions if sample is provided
+            if sample is not None:
+                item.gt_label = sample.gt_label
+                item.gt_mask = sample.gt_mask
+
+            return item.to_numpy()
 
         return None
 
-    def get_sample_from_dataset(self, split: str = "test", index: int = 0) -> AnomalyDetectorResult | None:
+    def get_sample_from_dataset(self, split: str = "test", index: int = 0) -> NumpyImageItem | NumpyDepthItem | None:
         """Get a sample from the dataset with ground truth.
 
         Args:
@@ -255,32 +274,14 @@ class AnomalyDetector:
             )
             index = 0
 
-        sample = dataset[index]
+        sample: ImageItem | DepthItem = dataset[index]  # type: ignore[reportUnknownReturnType]
+        return self.predict_image(sample=sample)
 
-        # Get image path and ground truth
-        image_path = getattr(sample, "image_path", None)
-        if image_path is None:
-            logger.warning("Sample at index %s has no image_path.", index)
-            return None
-
-        label = getattr(sample, "label", None)
-        gt_label = label.item() if label is not None else 0
-
-        mask = getattr(sample, "mask", None)
-        gt_mask = mask.cpu().numpy() if mask is not None else None
-
-        # Get prediction
-        result = self.predict_image(image_path)
-        if result is None:
-            return None
-
-        # Add ground truth info
-        result.gt_label = int(gt_label)
-        result.gt_mask = gt_mask
-        result.image_path = image_path
-
-        return result
-
-    def generate_explanation(self, _result: AnomalyDetectorResult) -> str:
+    def generate_explanation(self, _result: NumpyImageItem | NumpyDepthItem) -> str:
         """Generate textual explanation for the prediction."""
         return "This is a placeholder explanation"
+
+
+if __name__ == "__main__":
+    detector = AnomalyDetector(dataset_category="bottle")
+    detector.predict_image(image_path="/Users/clemens/Datasets/mvtec-ad/bottle/test/broken_small/001.png")
