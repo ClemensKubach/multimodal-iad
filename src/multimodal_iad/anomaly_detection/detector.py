@@ -19,6 +19,7 @@ from anomalib.engine import Engine
 from anomalib.models.image.patchcore import Patchcore
 from strenum import StrEnum
 
+from multimodal_iad.anomaly_detection.explainer import TextualAnomalyExplainer
 from multimodal_iad.utils.constants import DATASETS_DIR, RESULTS_DIR
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,8 @@ class AnomalyDetector:
         else:
             msg = f"Datamodule {self.selected_datamodule} not supported"
             raise ValueError(msg)
+
+        self.explainer = TextualAnomalyExplainer()
 
         self.engine = Engine()
         self.trained = False
@@ -262,8 +265,7 @@ class AnomalyDetector:
 
     def generate_explanation(self, _result: NumpyImageItem | NumpyDepthItem) -> str:
         """Generate textual explanation for the prediction."""
-        explanation = "This is a placeholder explanation"
-
+        explanation = self.explainer.explain(_result)
         _result.explanation = explanation
         return explanation
 
