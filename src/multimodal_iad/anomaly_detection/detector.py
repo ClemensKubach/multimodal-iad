@@ -262,7 +262,10 @@ class AnomalyDetector:
 
     def generate_explanation(self, _result: NumpyImageItem | NumpyDepthItem) -> str:
         """Generate textual explanation for the prediction."""
-        return "This is a placeholder explanation"
+        explanation = "This is a placeholder explanation"
+
+        _result.explanation = explanation
+        return explanation
 
 
 if __name__ == "__main__":

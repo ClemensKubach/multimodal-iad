@@ -163,11 +163,12 @@ class HeatmapWidget(FigureCanvas):
         """Update the heatmap display."""
         visualization = visualize_image_item(
             item,  # type: ignore[reportUnknownReturnType]
-            overlay_fields=[("image", ["gt_mask", "pred_mask"])],
-            overlay_fields_config={
-                "gt_mask": {"mode": "contour", "color": (0, 255, 0), "alpha": 0.7},
-                "pred_mask": {"mode": "fill", "color": (255, 0, 0), "alpha": 0.3},
+            overlay_fields=[("image", ["anomaly_map", "gt_mask"])],
+            fields_config={
+                "anomaly_map": {"normalize": True, "colormap": True},
+                "gt_mask": {"mode": "contour", "color": (255, 255, 255), "alpha": 0.9},
             },
+            text_config={"enable": False},
         )
         self.figure.clear()
         ax = self.figure.add_subplot(111)
@@ -186,15 +187,7 @@ class HeatmapWidget(FigureCanvas):
             ax.set_xticks([])
             ax.set_yticks([])
         else:
-            # if len(item.anomaly_map.shape) == RGB_IMAGE_DIMS:
-            #     anomaly_map = item.anomaly_map.squeeze()
-            # else:
-            #     anomaly_map = item.anomaly_map
-
-            # im = ax.imshow(anomaly_map, cmap="hot", interpolation="bilinear")
-            # self.figure.colorbar(im, ax=ax, label="Anomaly Score")
             ax.imshow(visualization)
-            ax.set_title(title, fontsize=14, fontweight="bold")
             ax.axis("off")
 
         self.figure.tight_layout()
