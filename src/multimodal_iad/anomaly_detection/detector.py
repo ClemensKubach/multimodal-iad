@@ -4,7 +4,6 @@ import logging
 from enum import auto
 from pathlib import Path
 
-import numpy as np
 from anomalib.data import (
     DepthBatch,
     DepthItem,
@@ -18,7 +17,6 @@ from anomalib.data import (
 from anomalib.data.dataclasses.numpy.depth import NumpyDepthItem
 from anomalib.engine import Engine
 from anomalib.models.image.patchcore import Patchcore
-from pydantic import BaseModel
 from strenum import StrEnum
 
 from multimodal_iad.utils.constants import DATASETS_DIR, RESULTS_DIR
@@ -37,21 +35,6 @@ class SupportedDatamodules(StrEnum):
 
     MVTecAD = auto()
     MVTec3D = auto()
-
-
-class AnomalyDetectorResult(BaseModel):
-    """Result of anomaly detection."""
-
-    model_config = {"arbitrary_types_allowed": True}
-
-    image: np.ndarray | None = None
-    pred_label: int | None = None
-    pred_score: float | None = None
-    anomaly_map: np.ndarray | None = None
-    pred_mask: np.ndarray | None = None
-    gt_label: int | None = None
-    gt_mask: np.ndarray | None = None
-    image_path: str | None = None
 
 
 class AnomalyDetector:
