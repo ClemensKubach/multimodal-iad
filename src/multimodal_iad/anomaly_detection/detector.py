@@ -20,7 +20,9 @@ from anomalib.engine import Engine
 from anomalib.models.image.patchcore import Patchcore
 from strenum import StrEnum
 
+from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_utils import FeatureExtractorModality
 from multimodal_iad.anomaly_detection.explainer import TextualAnomalyExplainer
+from multimodal_iad.anomaly_detection.patchcore_mm.lightning_model import PatchcoreMultimodal
 from multimodal_iad.utils.constants import DATASETS_DIR, RESULTS_DIR
 
 logger = logging.getLogger(__name__)
@@ -70,7 +72,10 @@ class AnomalyDetector:
         if self.selected_model == SupportedAdModels.Patchcore:
             self.model = Patchcore()  # post_processor=PostProcessor(enable_thresholding=False))
         elif self.selected_model == SupportedAdModels.PatchcoreMultimodal:
-            self.model = Patchcore()  # PatchcoreMultimodal()
+            fe_configs = [FeatureExtractorModality.RGB.value]
+            if self.selected_datamodule == SupportedDatamodules.MVTec3D:
+                fe_configs.append(FeatureExtractorModality.DEPTH.value)
+            self.model = PatchcoreMultimodal(feature_extractor_configs=fe_configs)
         else:
             msg = f"Model {self.selected_model} not supported"
             raise ValueError(msg)

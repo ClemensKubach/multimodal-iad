@@ -11,8 +11,10 @@ from anomalib.models.image.patchcore.torch_model import PatchcoreModel
 from torch import nn
 from torch.nn import functional as F  # noqa: N812
 
-from multimodal_iad.anomaly_detection.components.feature_extractors.timm import MultimodalTimmFeatureExtractor
-from multimodal_iad.anomaly_detection.patchcore_mm.lightning_model import FeatureExtractorConfig
+from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_timm import (
+    MultimodalTimmFeatureExtractor,
+)
+from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_utils import FeatureExtractorConfig
 
 if TYPE_CHECKING:
     from anomalib.data.utils.tiler import Tiler

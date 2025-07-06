@@ -694,7 +694,8 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(
                         self,
                         "No Checkpoint Found",
-                        "Could not find a pre-trained model checkpoint for the selected configuration.",
+                        "Could not find a pre-trained model checkpoint for the selected configuration. "
+                        "Please execute Train mode first.",
                     )
 
         except Exception as e:
