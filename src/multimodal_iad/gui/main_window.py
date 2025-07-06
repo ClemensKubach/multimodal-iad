@@ -303,7 +303,9 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         if self.status_bar:
-            self.status_bar.addPermanentWidget(self.progress_bar, 1)  # Add with stretch
+            self.status_bar.addPermanentWidget(self.progress_bar, 1)
+            self.status_bar.setVisible(True)
+
         self.update_status("Ready")
 
     def create_config_section(self) -> QGroupBox:
@@ -837,10 +839,13 @@ class MainWindow(QMainWindow):
         self.explanation_text.setText(f"Could not generate explanation: {error_message}")
         self.update_status("Failed to generate explanation.")
 
-    def update_status(self, message: str) -> None:
+    def update_status(self, message: str, timeout: int = 4000) -> None:
         """Update the status bar message."""
+        if self.status_bar is None:
+            self.status_bar = QStatusBar()
+            self.setStatusBar(self.status_bar)
         if self.status_bar:
-            self.status_bar.showMessage(message)
+            self.status_bar.showMessage(message, timeout)
         logger.info(message)
 
     def setup_logging(self) -> None:

@@ -1,23 +1,23 @@
 """Multimodal Patchcore torch model."""
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 from anomalib.data import InferenceBatch
-from anomalib.models.components import DynamicBufferMixin, KCenterGreedy
+from anomalib.models.components import DynamicBufferMixin, KCenterGreedy, TimmFeatureExtractor
 from anomalib.models.image.patchcore.anomaly_map import AnomalyMapGenerator
 from anomalib.models.image.patchcore.torch_model import PatchcoreModel
 from torch import nn
 from torch.nn import functional as F  # noqa: N812
 
-from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_timm import (
-    MultimodalTimmFeatureExtractor,
-)
 from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_utils import FeatureExtractorConfig
 
 if TYPE_CHECKING:
     from anomalib.data.utils.tiler import Tiler
+
+logger = logging.getLogger(__name__)
 
 
 class PatchcoreMultimodalModel(DynamicBufferMixin, nn.Module):
@@ -49,11 +49,11 @@ class PatchcoreMultimodalModel(DynamicBufferMixin, nn.Module):
 
         for config in self.feature_extractor_configs:
             self.feature_extractors.append(
-                MultimodalTimmFeatureExtractor(
+                TimmFeatureExtractor(  # MultimodalTimmFeatureExtractor(
                     backbone=config.backbone,
                     pre_trained=config.pre_trained,
                     layers=config.layers,
-                    in_channels=len(config.modality_marker) if config.channel_mode == "adjust_arch" else None,
+                    # in_channels=len(config.modality_marker) if config.channel_mode == "adjust_arch" else None,
                 ).eval()
             )
             if config.backbone != self.backbone:
@@ -67,6 +67,7 @@ class PatchcoreMultimodalModel(DynamicBufferMixin, nn.Module):
             current_slice_end = current_slice_start + channel_count
             self.input_channel_slices.append(slice(current_slice_start, current_slice_end))
             current_slice_start = current_slice_end
+        logger.info("Input channel slices: %s", self.input_channel_slices)
         self.feature_pooler = torch.nn.AvgPool2d(3, 1, 1)
         self.anomaly_map_generator = AnomalyMapGenerator()
 
@@ -104,13 +105,17 @@ class PatchcoreMultimodalModel(DynamicBufferMixin, nn.Module):
             input_tensor = self.tiler.tile(input_tensor)
 
         multimodal_features = []
+        if self.input_channel_slices[-1].stop > input_tensor.shape[1]:
+            logger.warning("Input channel slices: %s", self.input_channel_slices)
+            logger.warning("Input tensor: %s", input_tensor.shape)
         with torch.no_grad():
             for feature_extractor, input_channel_slice in zip(
                 self.feature_extractors,
                 self.input_channel_slices,
                 strict=False,
             ):
-                multimodal_features.append(feature_extractor(input_tensor[:, input_channel_slice, ...]))
+                sliced_tensor = input_tensor[:, input_channel_slice, ...]
+                multimodal_features.append(feature_extractor(sliced_tensor))
 
         features = {}
         layer_features = {}

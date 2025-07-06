@@ -36,6 +36,12 @@ Locally, there is a quickfix in the code, but the underlying issue should be fix
 Maybe, fork it later.
 
 
+## Known Issues
+- PatchcoreMultimodal outputs not correctly normalized anomaly maps
+- Anomalib bug in f1_adaptive_threshold
+- Anomalib bug in saving model checkpoints at the correct location sometimes (loads wrong model sometimes)
+- Status bar not showing anymore
+
 
 ## Project Overview
 

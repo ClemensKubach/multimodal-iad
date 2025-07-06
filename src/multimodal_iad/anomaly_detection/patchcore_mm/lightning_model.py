@@ -53,25 +53,11 @@ class PatchcoreMultimodal(MemoryBankMixin, AnomalibModule):
             visualizer: Visualizer to use.
 
         """
-        self.rgb_feature_extractor_config: FeatureExtractorConfig | None = None
-        self.non_base_rgb_configs: list[FeatureExtractorConfig] = []
-        self.expected_input_channels: int | None = None
         self.feature_extractor_configs = feature_extractor_configs
-        for config in feature_extractor_configs:
-            if (
-                config.modality_marker == FeatureExtractorModality.RGB.value.modality_marker
-                and self.rgb_feature_extractor_config is None
-            ):
-                self.rgb_feature_extractor_config = config
-            else:
-                self.non_base_rgb_configs.append(config)
-        if self.rgb_feature_extractor_config is None:
-            msg = "RGB feature extractor configuration is required."
-            raise ValueError(msg)
 
         if pre_processor:
             # override the default pre-processor with a multimodal pre-processor and transform
-            pre_processor = self._dynamic_default_pre_processor()
+            pre_processor = self._dynamic_default_pre_processor(feature_extractor_configs=feature_extractor_configs)
 
         super().__init__(
             pre_processor=pre_processor,
@@ -87,10 +73,12 @@ class PatchcoreMultimodal(MemoryBankMixin, AnomalibModule):
         self.coreset_sampling_ratio = coreset_sampling_ratio
         self.embeddings: list[torch.Tensor] = []
 
+    @classmethod
     def _dynamic_default_pre_processor(
-        self,
+        cls,
         image_size: tuple[int, int] | None = None,
         center_crop_size: tuple[int, int] | None = None,
+        feature_extractor_configs: Sequence[FeatureExtractorConfig] = (FeatureExtractorModality.RGB.value,),
     ) -> MultimodalPreProcessor:
         """Dynamic default pre-processor."""
         image_size = image_size or (256, 256)
@@ -99,19 +87,23 @@ class PatchcoreMultimodal(MemoryBankMixin, AnomalibModule):
         norm_std = []
         rgb_norm_mean = [0.485, 0.456, 0.406]
         rgb_norm_std = [0.229, 0.224, 0.225]
-        for config in self.feature_extractor_configs:
-            if config.channel_mode == "adjust_arch":
-                msg = "Adjusting the architecture is not yet implemented for the default pre-processor."
-                raise NotImplementedError(msg)
-            if config.modality_marker in (
-                FeatureExtractorModality.RGB.value.modality_marker,
-                FeatureExtractorModality.DEPTH.value.modality_marker,
-            ):
-                norm_mean.extend(rgb_norm_mean)
-                norm_std.extend(rgb_norm_std)
-            else:
-                msg = f"Mobility marker {config.modality_marker} is not yet implemented for the default pre-processor."
-                raise NotImplementedError(msg)
+        # for config in feature_extractor_configs:
+        #     if config.channel_mode == "adjust_arch":
+        #         msg = "Adjusting the architecture is not yet implemented for the default pre-processor."
+        #         raise NotImplementedError(msg)
+        #     if config.modality_marker in (
+        #         FeatureExtractorModality.RGB.value.modality_marker,
+        #         FeatureExtractorModality.DEPTH.value.modality_marker,
+        #     ):
+        #         norm_mean.extend(rgb_norm_mean)
+        #         norm_std.extend(rgb_norm_std)
+        #     else:
+        #         msg = f"Mobility marker {config.modality_marker} is not yet implemented for the default pre-processor."
+        #         raise NotImplementedError(msg)
+        norm_mean.extend(rgb_norm_mean)
+        norm_std.extend(rgb_norm_std)
+        logger.info(f"CLEMENS Preprocessor uses norm_mean: {norm_mean}")
+        logger.info(f"CLEMENS Preprocessor uses norm_std: {norm_std}")
 
         if center_crop_size is not None:
             if center_crop_size[0] > image_size[0] or center_crop_size[1] > image_size[1]:
@@ -163,28 +155,7 @@ class PatchcoreMultimodal(MemoryBankMixin, AnomalibModule):
             >>> transformed_image = pre_processor(image)
 
         """
-        image_size = image_size or (256, 256)
-
-        if center_crop_size is not None:
-            if center_crop_size[0] > image_size[0] or center_crop_size[1] > image_size[1]:
-                msg = f"Center crop size {center_crop_size} cannot be larger than image size {image_size}."
-                raise ValueError(msg)
-            transform = Compose(
-                [
-                    Resize(image_size, antialias=True),
-                    CenterCrop(center_crop_size),
-                    Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                ]
-            )
-        else:
-            transform = Compose(
-                [
-                    Resize(image_size, antialias=True),
-                    Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                ]
-            )
-
-        return MultimodalPreProcessor(transform=transform)
+        return cls._dynamic_default_pre_processor(image_size=image_size, center_crop_size=center_crop_size)
 
     @staticmethod
     def configure_optimizers() -> None:

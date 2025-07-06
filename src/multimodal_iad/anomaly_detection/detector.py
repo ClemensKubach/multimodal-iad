@@ -13,7 +13,6 @@ from anomalib.data import (
     MVTecAD,
     MVTecLOCO,
     NumpyImageItem,
-    PredictDataset,
 )
 from anomalib.data.dataclasses.numpy.depth import NumpyDepthItem
 from anomalib.engine import Engine
@@ -23,6 +22,7 @@ from strenum import StrEnum
 from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_utils import FeatureExtractorModality
 from multimodal_iad.anomaly_detection.explainer import TextualAnomalyExplainer
 from multimodal_iad.anomaly_detection.patchcore_mm.lightning_model import PatchcoreMultimodal
+from multimodal_iad.anomaly_detection.predict_dataset import MultimodalPredictDataset
 from multimodal_iad.utils.constants import DATASETS_DIR, RESULTS_DIR
 
 logger = logging.getLogger(__name__)
@@ -213,9 +213,15 @@ class AnomalyDetector:
             msg = "Image path is required"
             raise ValueError(msg)
 
+        if self.selected_datamodule == SupportedDatamodules.MVTec3D:
+            depth_path = image_path.replace("rgb", "xyz").replace(".png", ".tiff")
+        else:
+            depth_path = None
+
         logger.info("Predicting image %s...", image_path)
-        dataset = PredictDataset(
+        dataset = MultimodalPredictDataset(
             path=image_path,
+            depth_path=depth_path,
             image_size=(256, 256),
         )
 
@@ -244,7 +250,13 @@ class AnomalyDetector:
                 item.gt_label = sample.gt_label
                 item.gt_mask = sample.gt_mask
 
-            return item.to_numpy()
+            if isinstance(item, DepthItem):
+                # quick fix because DepthItem extends NumpyImageItem
+                item.numpy_class = NumpyDepthItem  # type: ignore[reportAttributeAccessIssue]
+                if item.depth_map is not None:
+                    # quick fix order of channels
+                    item.depth_map = None
+            return item.to_numpy()  # type: ignore[reportUnknownReturnType]
 
         return None
 

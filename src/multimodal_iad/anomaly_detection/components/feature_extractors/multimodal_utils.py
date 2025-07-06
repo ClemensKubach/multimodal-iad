@@ -49,5 +49,5 @@ def get_multimodal_batch_tensor(
             msg = f"Depth map must have been converted to RGB already but has channel size {depth.shape[-3]}."
             # because currently only adjust_input is just implemented
             raise ValueError(msg)
-        return torch.cat([rgb, depth], dim=1, device=rgb.device)  # type: ignore[arg-type]
+        return torch.cat((rgb, depth), dim=1)  # type: ignore[arg-type]
     return rgb  # type: ignore[return-value]
