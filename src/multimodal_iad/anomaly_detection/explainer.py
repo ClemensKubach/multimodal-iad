@@ -12,9 +12,20 @@ from anomalib.visualization import visualize_image_item
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from strenum import StrEnum
 from torchvision.transforms.functional import to_pil_image
 
 logger = logging.getLogger(__name__)
+
+
+class SupportedLLMs(StrEnum):
+    """Supported LLM models."""
+
+    GEMINI_2_5_FLASH = "gemini-2.5-flash"
+    GEMINI_2_5_PRO = "gemini-2.5-pro"
+    GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite-preview-06-17"
+    GEMINI_2_5_FLASH_TTS = "gemini-2.5-flash-preview-tts"
+    GEMINI_2_5_PRO_TTS = "gemini-2.5-pro-preview-tts"
 
 
 class TextualAnomalyExplainer:
@@ -28,6 +39,7 @@ class TextualAnomalyExplainer:
         dataset_category: str,
         datamodule: MVTecAD | MVTec3D | MVTecLOCO,
         num_normal_examples: int = 3,
+        model: SupportedLLMs = SupportedLLMs.GEMINI_2_5_FLASH_LITE,
     ) -> None:
         """Initialize the explainer.
 
@@ -35,11 +47,14 @@ class TextualAnomalyExplainer:
             dataset_category: The category of the dataset.
             datamodule: The datamodule of the dataset.
             num_normal_examples: The number of normal examples to include in the prompt.
+            model: The model to use for the explanation. Currently only supports models part of the
+                Google "google-genai" api.
 
         """
         self.dataset_category = dataset_category
         self.datamodule = datamodule
         self.num_normal_examples = num_normal_examples
+        self.model = model
 
         load_dotenv()
         api_key = os.environ.get("GEMINI_API_KEY")
@@ -149,7 +164,7 @@ class TextualAnomalyExplainer:
             # 3. Generate explanation
             logger.info("Generating textual explanation for anomaly...")
             response = self.client.models.generate_content(
-                model="gemini-2.5-pro",
+                model=self.model.value,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     response_modalities=["Text"],
