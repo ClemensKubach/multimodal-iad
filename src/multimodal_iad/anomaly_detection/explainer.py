@@ -75,11 +75,12 @@ class TextualAnomalyExplainer:
         normal_sample_paths = []
         train_dataset = self.datamodule.train_data
         indices = list(range(len(train_dataset)))
+        logger.info("Found %d samples in training dataset.", len(indices))
         random.shuffle(indices)
 
         for i in indices:
             sample: ImageItem | DepthItem = train_dataset[i]  # type: ignore[reportUnknownMemberType]
-            if sample.pred_label == 0 and hasattr(sample, "image_path"):
+            if hasattr(sample, "image_path"):  # all normal because unsupervised
                 normal_sample_paths.append(str(sample.image_path))
             if len(normal_sample_paths) == self.num_normal_examples:
                 break
@@ -92,7 +93,7 @@ class TextualAnomalyExplainer:
         uploaded_files = []
         for path in normal_sample_paths:
             logger.info("Uploading normal sample: %s", path)
-            uploaded_files.append(self.client.upload_file(path=path))  # type: ignore[reportUnknownMemberType]
+            uploaded_files.append(self.client.files.upload(file=path))  # type: ignore[reportUnknownMemberType]
         return uploaded_files
 
     def explain(self, item: NumpyImageItem | NumpyDepthItem) -> str | None:
