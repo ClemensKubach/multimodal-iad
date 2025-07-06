@@ -40,7 +40,16 @@ line-length = 120
 [tool.ruff.lint]
 select = ["ALL"]
 fixable = ["ALL"]
-ignore = ["D203", "D213", "COM812"]
+ignore = [
+    "D203",
+    "D213",
+    "COM812",
+    "FBT001",
+    "FBT002",
+    "PLR0913",
+    "ANN002",
+    "ANN003",
+]
 
 [tool.ruff.format]
 docstring-code-format = true

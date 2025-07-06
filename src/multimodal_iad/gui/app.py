@@ -17,7 +17,7 @@ def main() -> None:
     font = QFont("Arial", 10)
     app.setFont(font)
 
-    from multimodal_iad.gui.main_window import MainWindow  # noqa: PLC0415
+    from multimodal_iad.gui.main_window import MainWindow
 
     window = MainWindow()
     window.show()
