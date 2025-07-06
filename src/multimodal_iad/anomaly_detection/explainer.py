@@ -54,6 +54,9 @@ class TextualAnomalyExplainer:
         self.dataset_category = dataset_category
         self.datamodule = datamodule
         self.num_normal_examples = num_normal_examples
+        if "tts" in model.value:
+            msg = "TTS models are not supported for explanation. They only support audio output."
+            raise ValueError(msg)
         self.model = model
 
         load_dotenv()
