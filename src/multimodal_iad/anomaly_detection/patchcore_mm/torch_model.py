@@ -43,7 +43,7 @@ class PatchcoreMultimodalModel(DynamicBufferMixin, nn.Module):
         self.layers = self.feature_extractor_configs[0].layers
         self.num_neighbors = num_neighbors
 
-        self.feature_extractors = []
+        self.feature_extractors = nn.ModuleList()
         self.input_channel_slices = []
         current_slice_start = 0
 
