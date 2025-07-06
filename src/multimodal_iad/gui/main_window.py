@@ -158,22 +158,24 @@ class HeatmapWidget(FigureCanvas):
 
     def update_heatmap(
         self,
-        item: NumpyImageItem | NumpyDepthItem,
+        item: NumpyImageItem | NumpyDepthItem | None,
     ) -> None:
         """Update the heatmap display."""
-        visualization = visualize_image_item(
-            item,  # type: ignore[reportUnknownReturnType]
-            overlay_fields=[("image", ["anomaly_map", "gt_mask"])],
-            fields_config={
-                "anomaly_map": {"normalize": True, "colormap": True},
-                "gt_mask": {"mode": "contour", "color": (255, 255, 255), "alpha": 0.9},
-            },
-            text_config={"enable": False},
-        )
+        visualization = None
+        if item is not None:
+            visualization = visualize_image_item(
+                item,  # type: ignore[reportUnknownReturnType]
+                overlay_fields=[("image", ["anomaly_map", "gt_mask"])],
+                fields_config={
+                    "anomaly_map": {"normalize": True, "colormap": True},
+                    "gt_mask": {"mode": "contour", "color": (255, 255, 255), "alpha": 0.9},
+                },
+                text_config={"enable": False},
+            )
+
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
-        # if item.anomaly_map is None:
         if visualization is None:
             ax.text(
                 0.5,
@@ -346,6 +348,12 @@ class MainWindow(QMainWindow):
         self.datamodule_combo.currentIndexChanged.connect(self._update_categories)
         self._update_categories()
 
+        # Connect all config combos to reset state on change
+        self.model_combo.currentIndexChanged.connect(self._on_config_changed)
+        self.datamodule_combo.currentIndexChanged.connect(self._on_config_changed)
+        self.category_combo.currentIndexChanged.connect(self._on_config_changed)
+        self.mode_combo.currentIndexChanged.connect(self._on_config_changed)
+
         # Add a spacer item to the layout
         layout.addItem(QSpacerItem(0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
 
@@ -359,6 +367,29 @@ class MainWindow(QMainWindow):
             self.category_combo.addItems(MVTEC3D_CATEGORIES)
         elif selected_datamodule == SupportedDatamodules.MVTecAD_LOCO:
             self.category_combo.addItems(MVTEC_LOCO_CATEGORIES)
+
+    def _on_config_changed(self) -> None:
+        """Reset the UI and state when the configuration changes."""
+        self.load_image_btn.setEnabled(False)
+        self.prev_btn.setEnabled(False)
+        self.next_btn.setEnabled(False)
+
+        # Clear all displays to avoid showing stale data
+        self.input_image_label.set_image(None)
+        self.image_path_label.setText("Image Path: N/A")
+        self.heatmap_widget.update_heatmap(None)
+        self.gt_label_value.setText("N/A")
+        self.pred_label_value.setText("N/A")
+        self.pred_label_value.setStyleSheet("font-size: 18px;")  # Reset color
+        self.score_value.setText("N/A")
+        self.explanation_text.clear()
+
+        # Reset internal state
+        self.detector = None
+        self.current_result = None
+        self.current_sample_index = 0
+
+        self.update_status("Configuration changed. Click 'Execute' to apply.")
 
     def _add_action_buttons(self, layout: QHBoxLayout) -> None:
         """Add action and navigation buttons to the layout."""
