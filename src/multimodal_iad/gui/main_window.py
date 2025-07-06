@@ -91,6 +91,35 @@ class TrainingThread(QThread):
             self.error.emit(str(e))
 
 
+class ExplanationThread(QThread):
+    """Thread for generating explanations without blocking the GUI."""
+
+    explanation_ready = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, detector: AnomalyDetector, result: NumpyImageItem | NumpyDepthItem) -> None:
+        """Initialize the explanation thread."""
+        super().__init__()
+        self.detector = detector
+        self.result = result
+        self.is_cancelled = False
+
+    def run(self) -> None:
+        """Run the explanation generation process."""
+        try:
+            explanation = self.detector.generate_explanation(self.result)
+            if not self.is_cancelled:
+                self.explanation_ready.emit(explanation)
+        except Exception as e:
+            if not self.is_cancelled:
+                logger.exception("Explanation generation failed.")
+                self.error.emit(str(e))
+
+    def cancel(self) -> None:
+        """Mark the thread for cancellation."""
+        self.is_cancelled = True
+
+
 class ImageLabel(QLabel):
     """Custom QLabel for displaying images with proper scaling."""
 
@@ -208,6 +237,7 @@ class MainWindow(QMainWindow):
         self.detector: AnomalyDetector | None = None
         self.current_result: NumpyImageItem | NumpyDepthItem | None = None
         self.current_sample_index = 0
+        self.explanation_thread: ExplanationThread | None = None
 
         self.status_bar: QStatusBar | None = self.statusBar()
         self.init_ui()
@@ -368,8 +398,16 @@ class MainWindow(QMainWindow):
         elif selected_datamodule == SupportedDatamodules.MVTecAD_LOCO:
             self.category_combo.addItems(MVTEC_LOCO_CATEGORIES)
 
+    def _cancel_explanation_thread(self) -> None:
+        """Cancel any running explanation thread to prevent outdated results."""
+        if self.explanation_thread and self.explanation_thread.isRunning():
+            self.explanation_thread.cancel()
+
     def _on_config_changed(self) -> None:
         """Reset the UI and state when the configuration changes."""
+        # Cancel any running explanation thread to prevent outdated results
+        self._cancel_explanation_thread()
+
         self.load_image_btn.setEnabled(False)
         self.prev_btn.setEnabled(False)
         self.next_btn.setEnabled(False)
@@ -620,6 +658,7 @@ class MainWindow(QMainWindow):
 
     def execute_detection(self) -> None:
         """Execute the anomaly detection based on selected configuration."""
+        self._cancel_explanation_thread()
         try:
             # Get configuration
             model_name = self.model_combo.currentText()
@@ -708,17 +747,20 @@ class MainWindow(QMainWindow):
 
     def show_previous_sample(self) -> None:
         """Show the previous sample in the dataset."""
+        self._cancel_explanation_thread()
         if self.current_sample_index > 0:
             self.current_sample_index -= 1
             self.show_sample()
 
     def show_next_sample(self) -> None:
         """Show the next sample in the dataset."""
+        self._cancel_explanation_thread()
         self.current_sample_index += 1
         self.show_sample()
 
     def load_custom_image(self) -> None:
         """Load a custom image for prediction."""
+        self._cancel_explanation_thread()
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Image",
@@ -777,8 +819,22 @@ class MainWindow(QMainWindow):
 
         # Update explanation
         if self.detector and self.current_result:
-            explanation = self.detector.generate_explanation(self.current_result)
-            self.explanation_text.setText(explanation)
+            self.explanation_text.setText("Generating explanation, please wait...")
+            self.update_status("Generating explanation...")
+            self.explanation_thread = ExplanationThread(self.detector, self.current_result)
+            self.explanation_thread.explanation_ready.connect(self.on_explanation_ready)
+            self.explanation_thread.error.connect(self.on_explanation_error)
+            self.explanation_thread.start()
+
+    def on_explanation_ready(self, explanation: str) -> None:
+        """Handle completion of explanation generation."""
+        self.explanation_text.setText(explanation)
+        self.update_status("Explanation ready.")
+
+    def on_explanation_error(self, error_message: str) -> None:
+        """Show an error if explanation generation fails."""
+        self.explanation_text.setText(f"Could not generate explanation: {error_message}")
+        self.update_status("Failed to generate explanation.")
 
     def update_status(self, message: str) -> None:
         """Update the status bar message."""
