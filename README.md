@@ -23,6 +23,8 @@ GIT_LFS_SKIP_SMUDGE=1 uv sync
 ```
 
 ### Usage
+Set the environment variable `GEMINI_API_KEY` to your Google Gemini API key (i.e. via .env file).
+
 Run the GUI application:
 ```bash
 uv run multimodal-iad

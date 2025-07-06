@@ -11,6 +11,7 @@ from anomalib.data import (
     ImageItem,
     MVTec3D,
     MVTecAD,
+    MVTecLOCO,
     NumpyImageItem,
     PredictDataset,
 )
@@ -29,6 +30,7 @@ class SupportedAdModels(StrEnum):
     """Supported anomaly detection models."""
 
     Patchcore = auto()
+    PatchcoreMultimodal = auto()
 
 
 class SupportedDatamodules(StrEnum):
@@ -36,6 +38,7 @@ class SupportedDatamodules(StrEnum):
 
     MVTecAD = auto()
     MVTec3D = auto()
+    MVTecAD_LOCO = auto()
 
 
 class AnomalyDetector:
@@ -65,7 +68,9 @@ class AnomalyDetector:
         self.checkpoint_path: Path | None = None
 
         if self.selected_model == SupportedAdModels.Patchcore:
-            self.model = Patchcore()
+            self.model = Patchcore()  # post_processor=PostProcessor(enable_thresholding=False))
+        elif self.selected_model == SupportedAdModels.PatchcoreMultimodal:
+            self.model = Patchcore()  # PatchcoreMultimodal()
         else:
             msg = f"Model {self.selected_model} not supported"
             raise ValueError(msg)
@@ -84,11 +89,18 @@ class AnomalyDetector:
                 train_batch_size=32,
                 eval_batch_size=32,
             )
+        elif self.selected_datamodule == SupportedDatamodules.MVTecAD_LOCO:
+            self.datamodule = MVTecLOCO(
+                root=self.datasets_dir / "mvtec-loco-ad",
+                category=self.dataset_category,
+                train_batch_size=32,
+                eval_batch_size=32,
+            )
         else:
             msg = f"Datamodule {self.selected_datamodule} not supported"
             raise ValueError(msg)
 
-        self.explainer = TextualAnomalyExplainer()
+        self.explainer = TextualAnomalyExplainer(dataset_category=self.dataset_category, datamodule=self.datamodule)
 
         self.engine = Engine()
         self.trained = False
@@ -266,8 +278,8 @@ class AnomalyDetector:
     def generate_explanation(self, _result: NumpyImageItem | NumpyDepthItem) -> str:
         """Generate textual explanation for the prediction."""
         explanation = self.explainer.explain(_result)
-        _result.explanation = explanation
-        return explanation
+        _result.explanation = explanation  # type: ignore[reportAttributeAccessIssue]
+        return explanation or "This image is predicted to be normal. No explanation is needed."
 
 
 if __name__ == "__main__":

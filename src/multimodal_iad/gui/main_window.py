@@ -36,6 +36,7 @@ from typing_extensions import override
 
 mpl.use("QtAgg")
 from anomalib.data.datasets.depth.mvtec_3d import CATEGORIES as MVTEC3D_CATEGORIES
+from anomalib.data.datasets.image.mvtec_loco import CATEGORIES as MVTEC_LOCO_CATEGORIES
 from anomalib.data.datasets.image.mvtecad import CATEGORIES as MVTECAD_CATEGORIES
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -213,7 +214,7 @@ class MainWindow(QMainWindow):
 
     def init_ui(self) -> None:
         """Initialize the user interface."""
-        self.setWindowTitle("Multimodal-IAD - Anomaly Detection GUI")
+        self.setWindowTitle("Multimodal Industrial Anomaly Detection Interface")
 
         # Set geometry based on screen size to ensure it fits
         screen = QApplication.primaryScreen()
@@ -238,7 +239,7 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(20, 20, 20, 20)
 
         # Header with title
-        header_label = QLabel("Anomaly Detection with Anomalib 2.0")
+        header_label = QLabel("Multimodal Industrial Anomaly Detection")
         header_font = QFont()
         header_font.setPointSize(24)
         header_font.setBold(True)
@@ -337,7 +338,7 @@ class MainWindow(QMainWindow):
         self.category_combo.setMinimumWidth(min_combo_width)
         selector_layout.addWidget(self.category_combo)
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Train", "Predict"])
+        self.mode_combo.addItems(["Predict", "Train"])
         self.mode_combo.setMinimumWidth(min_combo_width)
         selector_layout.addWidget(self.mode_combo)
         layout.addLayout(selector_layout)
@@ -356,6 +357,8 @@ class MainWindow(QMainWindow):
             self.category_combo.addItems(MVTECAD_CATEGORIES)
         elif selected_datamodule == SupportedDatamodules.MVTec3D:
             self.category_combo.addItems(MVTEC3D_CATEGORIES)
+        elif selected_datamodule == SupportedDatamodules.MVTecAD_LOCO:
+            self.category_combo.addItems(MVTEC_LOCO_CATEGORIES)
 
     def _add_action_buttons(self, layout: QHBoxLayout) -> None:
         """Add action and navigation buttons to the layout."""
