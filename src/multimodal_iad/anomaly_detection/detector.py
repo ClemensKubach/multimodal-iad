@@ -292,11 +292,16 @@ class AnomalyDetector:
         sample: ImageItem | DepthItem = dataset[index]  # type: ignore[reportUnknownReturnType]
         return self.predict_image(sample=sample)
 
-    def generate_explanation(self, _result: NumpyImageItem | NumpyDepthItem) -> str:
+    def generate_explanation(self, _result: NumpyImageItem | NumpyDepthItem) -> tuple[str, bool]:
         """Generate textual explanation for the prediction."""
         explanation = self.explainer.explain(_result)
         _result.explanation = explanation  # type: ignore[reportAttributeAccessIssue]
-        return explanation or "This image is predicted to be normal. No explanation is needed."
+        is_generated = explanation is not None
+        if is_generated:
+            # currently only for abnormal samples
+            return explanation, is_generated
+        # currently only for normal samples
+        return "This image is predicted to be normal. No explanation is needed.", is_generated
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib as mpl
 import numpy as np
+import pyttsx3
 from anomalib.data import NumpyImageItem
 from anomalib.data.dataclasses.numpy.depth import NumpyDepthItem
 from anomalib.visualization import visualize_image_item
@@ -35,6 +36,8 @@ from PyQt6.QtWidgets import (
 from typing_extensions import override
 
 mpl.use("QtAgg")
+from contextlib import suppress
+
 from anomalib.data.datasets.depth.mvtec_3d import CATEGORIES as MVTEC3D_CATEGORIES
 from anomalib.data.datasets.image.mvtec_loco import CATEGORIES as MVTEC_LOCO_CATEGORIES
 from anomalib.data.datasets.image.mvtecad import CATEGORIES as MVTECAD_CATEGORIES
@@ -91,10 +94,71 @@ class TrainingThread(QThread):
             self.error.emit(str(e))
 
 
+class TTSThread(QThread):
+    """Thread for text-to-speech to avoid blocking the GUI."""
+
+    error = pyqtSignal(str)
+    finished = pyqtSignal()
+
+    def __init__(self, text_to_speak: str, engine: pyttsx3.Engine) -> None:
+        """Initialize the TTS thread."""
+        super().__init__()
+        self.text_to_speak = text_to_speak
+        self.engine = engine
+        self.is_cancelled = False
+        self._finished_token = None
+        self._error_token = None
+
+    @override
+    def run(self) -> None:
+        """Run the TTS process."""
+        self._finished_token = self.engine.connect("finished-utterance", self._on_finished_utterance)
+        self._error_token = self.engine.connect("error", self._on_error)
+        try:
+            if not self.is_cancelled:
+                self.engine.say(self.text_to_speak)
+                self.engine.startLoop()
+        except RuntimeError as e:
+            # This can happen if another loop is already running or driver fails
+            logger.warning("TTS runtime error: %s", e)
+        finally:
+            self._clean_callbacks()
+            self.finished.emit()
+
+    def _on_finished_utterance(self, _name: str, _completed: bool) -> None:
+        """End the loop when an utterance is finished."""
+        self._end_loop_safely()
+
+    def _on_error(self, _name: str, exception: Exception) -> None:
+        """End the loop on TTS error."""
+        self.error.emit(str(exception))
+        self._end_loop_safely()
+
+    def _end_loop_safely(self) -> None:
+        """End the pyttsx3 event loop if it is running."""
+        with suppress(RuntimeError, KeyError):  # KeyError on some platforms
+            self.engine.endLoop()
+
+    def _clean_callbacks(self) -> None:
+        """Disconnect callbacks."""
+        if self._finished_token:
+            self.engine.disconnect(self._finished_token)
+            self._finished_token = None
+        if self._error_token:
+            self.engine.disconnect(self._error_token)
+            self._error_token = None
+
+    def cancel(self) -> None:
+        """Mark the thread for cancellation."""
+        self.is_cancelled = True
+        self.engine.stop()
+        self._end_loop_safely()
+
+
 class ExplanationThread(QThread):
     """Thread for generating explanations without blocking the GUI."""
 
-    explanation_ready = pyqtSignal(str)
+    explanation_ready = pyqtSignal(str, bool)
     error = pyqtSignal(str)
 
     def __init__(self, detector: AnomalyDetector, result: NumpyImageItem | NumpyDepthItem) -> None:
@@ -107,9 +171,9 @@ class ExplanationThread(QThread):
     def run(self) -> None:
         """Run the explanation generation process."""
         try:
-            explanation = self.detector.generate_explanation(self.result)
+            explanation, is_generated = self.detector.generate_explanation(self.result)
             if not self.is_cancelled:
-                self.explanation_ready.emit(explanation)
+                self.explanation_ready.emit(explanation, is_generated)
         except Exception as e:
             if not self.is_cancelled:
                 logger.exception("Explanation generation failed.")
@@ -233,6 +297,12 @@ class MainWindow(QMainWindow):
         self.current_result: NumpyImageItem | NumpyDepthItem | None = None
         self.current_sample_index = 0
         self.explanation_thread: ExplanationThread | None = None
+        self.tts_thread: TTSThread | None = None
+        self.tts_engine: pyttsx3.Engine | None = None
+        try:
+            self.tts_engine = pyttsx3.init()
+        except RuntimeError as e:
+            logger.warning("Could not initialize pyttsx3 engine. Is an engine installed? Error: %s", e)
 
         self.status_bar: QStatusBar | None = self.statusBar()
         self.init_ui()
@@ -400,10 +470,16 @@ class MainWindow(QMainWindow):
         if self.explanation_thread and self.explanation_thread.isRunning():
             self.explanation_thread.cancel()
 
+    def _cancel_tts_thread(self) -> None:
+        """Cancel any running TTS thread."""
+        if self.tts_thread and self.tts_thread.isRunning():
+            self.tts_thread.cancel()
+
     def _on_config_changed(self) -> None:
         """Reset the UI and state when the configuration changes."""
         # Cancel any running explanation thread to prevent outdated results
         self._cancel_explanation_thread()
+        self._cancel_tts_thread()
 
         self.load_image_btn.setEnabled(False)
         self.prev_btn.setEnabled(False)
@@ -656,6 +732,7 @@ class MainWindow(QMainWindow):
     def execute_detection(self) -> None:
         """Execute the anomaly detection based on selected configuration."""
         self._cancel_explanation_thread()
+        self._cancel_tts_thread()
         try:
             # Get configuration
             model_name = self.model_combo.currentText()
@@ -746,6 +823,7 @@ class MainWindow(QMainWindow):
     def show_previous_sample(self) -> None:
         """Show the previous sample in the dataset."""
         self._cancel_explanation_thread()
+        self._cancel_tts_thread()
         if self.current_sample_index > 0:
             self.current_sample_index -= 1
             self.show_sample()
@@ -753,12 +831,14 @@ class MainWindow(QMainWindow):
     def show_next_sample(self) -> None:
         """Show the next sample in the dataset."""
         self._cancel_explanation_thread()
+        self._cancel_tts_thread()
         self.current_sample_index += 1
         self.show_sample()
 
     def load_custom_image(self) -> None:
         """Load a custom image for prediction."""
         self._cancel_explanation_thread()
+        self._cancel_tts_thread()
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Image",
@@ -824,15 +904,30 @@ class MainWindow(QMainWindow):
             self.explanation_thread.error.connect(self.on_explanation_error)
             self.explanation_thread.start()
 
-    def on_explanation_ready(self, explanation: str) -> None:
+    def on_explanation_ready(self, explanation: str, is_generated: bool) -> None:
         """Handle completion of explanation generation."""
         self.explanation_text.setText(explanation)
         self.update_status("Explanation ready.")
+        if self.current_result and is_generated and self.tts_engine:
+            self._cancel_tts_thread()  # Cancel previous TTS if any
+            self.tts_thread = TTSThread(explanation, self.tts_engine)
+            self.tts_thread.error.connect(self.on_tts_error)
+            self.tts_thread.finished.connect(self._on_tts_finished)
+            self.tts_thread.start()
 
     def on_explanation_error(self, error_message: str) -> None:
         """Show an error if explanation generation fails."""
         self.explanation_text.setText(f"Could not generate explanation: {error_message}")
         self.update_status("Failed to generate explanation.")
+
+    def on_tts_error(self, error_message: str) -> None:
+        """Show an error if TTS fails."""
+        logger.error("TTS error: %s", error_message)
+        self.update_status("Text-to-speech failed.")
+
+    def _on_tts_finished(self) -> None:
+        """Clean up after TTS thread has finished."""
+        self.tts_thread = None
 
     def update_status(self, message: str, timeout: int = 4000) -> None:
         """Update the status bar message."""
@@ -870,6 +965,8 @@ class MainWindow(QMainWindow):
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Restore stdout/stderr on close."""
+        self._cancel_explanation_thread()
+        self._cancel_tts_thread()
         sys.stdout = self._original_stdout
         sys.stderr = self._original_stderr
         super().closeEvent(event)
