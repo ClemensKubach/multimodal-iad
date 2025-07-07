@@ -18,11 +18,14 @@ The system offers:
 - A user-friendly GUI to view an input image, the resulting anomaly map, and a textual explanation of the anomaly.
 - **Visual** (pixel-level) and **textual** (LLM-based) explanations for anomaly detection results. The explanations are generated dynamically based on, i.e., the input image and the anomaly map.
 - Support for various datasets (e.g., MVTec 2D and 3D, LOCO).
-- The core of the IAD is based on the `anomalib` library, utilizing the PatchCore model and an extension of it for multimodal inputs. Textual explanations are generated via Google's Gemini Vision models.
+- The core of the IAD is based on the `anomalib` library, utilizing the PatchCore model and an extension of it for multimodal inputs. Textual explanations are generated via Google's Gemini models.
+- Text-to-speech (TTS) of the explanations.
 
 Based on:
 - **anomalib** (≥2.0.0): Advanced anomaly detection library
 - **PyQt6**: GUI framework
+- **pyttsx3**: Text-to-speech library
+- **google-genai**: Google Gemini API client
 - **Development tools**:
   - ruff (≥0.12.0): Python linter
 
@@ -62,5 +65,4 @@ Maybe, fork it later.
 
 ## Known Issues
 - Anomalib bug in f1_adaptive_threshold
-- Anomalib bug in saving model checkpoints at the correct location sometimes (loads wrong model sometimes)
-- Status bar not showing anymore
+- Status bar not always showing

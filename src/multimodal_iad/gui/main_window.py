@@ -15,6 +15,7 @@ from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QCloseEvent, QFont, QImage, QPixmap, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QGridLayout,
@@ -298,9 +299,12 @@ class MainWindow(QMainWindow):
         self.current_sample_index = 0
         self.explanation_thread: ExplanationThread | None = None
         self.tts_thread: TTSThread | None = None
+        self.audio_enabled_checkbox: QCheckBox | None = None
         self.tts_engine: pyttsx3.Engine | None = None
         try:
             self.tts_engine = pyttsx3.init()
+            if self.tts_engine:
+                self.tts_engine.setProperty("rate", 180)
         except RuntimeError as e:
             logger.warning("Could not initialize pyttsx3 engine. Is an engine installed? Error: %s", e)
 
@@ -624,6 +628,9 @@ class MainWindow(QMainWindow):
         self.explanation_text.setReadOnly(True)
         self.explanation_text.setMinimumHeight(TOP_BOTTOM_SECTION_HEIGHT)
         explanation_layout.addWidget(self.explanation_text)
+        self.audio_enabled_checkbox = QCheckBox("Enable audio output")
+        self.audio_enabled_checkbox.setChecked(False)
+        explanation_layout.addWidget(self.audio_enabled_checkbox, 0, Qt.AlignmentFlag.AlignRight)
         explanation_group.setLayout(explanation_layout)
         splitter.addWidget(explanation_group)
 
@@ -670,6 +677,9 @@ class MainWindow(QMainWindow):
                 padding: 0 5px 0 5px;
             }
             QLabel {
+                color: #424242;
+            }
+            QCheckBox {
                 color: #424242;
             }
             QComboBox {
@@ -908,7 +918,13 @@ class MainWindow(QMainWindow):
         """Handle completion of explanation generation."""
         self.explanation_text.setText(explanation)
         self.update_status("Explanation ready.")
-        if self.current_result and is_generated and self.tts_engine:
+        if (
+            self.current_result
+            and is_generated
+            and self.tts_engine
+            and self.audio_enabled_checkbox
+            and self.audio_enabled_checkbox.isChecked()
+        ):
             self._cancel_tts_thread()  # Cancel previous TTS if any
             self.tts_thread = TTSThread(explanation, self.tts_engine)
             self.tts_thread.error.connect(self.on_tts_error)
