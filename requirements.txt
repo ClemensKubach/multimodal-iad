@@ -1,9 +1,0 @@
-anomalib[core]>=2.0.0
-hydra-zen>=0.15.0
-pydantic>=2.11.7
-PyQt6>=6.9.1
-torch>=2.7.1
-torchvision>=0.22.1
-numpy>=1.24.0
-pillow>=10.0.0
-matplotlib>=3.7.0

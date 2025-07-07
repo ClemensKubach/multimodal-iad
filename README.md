@@ -2,6 +2,12 @@
 
 A multimodal system that generates **dynamic textual explanations** of image anomalies using **large language models (LLMs)**, making it well-suited for the open-ended nature of anomalies making them difficult to predefine.
 
+## Core Features:
+- Extending [anomalib](https://github.com/open-edge-platform/anomalib) by proving a multimodal GUI.
+- Textual anomaly explanation via multimodal LLMs.
+- Multimodal PatchCore implementation (currently RGB and Depth sources are supported, but more can be added).
+
+
 ![Screenshot](./screenshot.png)
 
 
