@@ -12,8 +12,8 @@ from anomalib.visualization import visualize_image_item
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from PIL import Image
 from strenum import StrEnum
-from torchvision.transforms.functional import to_pil_image
 
 from multimodal_iad.utils.constants import VISUALIZATION_CONFIG_KWARGS
 
@@ -120,33 +120,34 @@ class TextualAnomalyExplainer:
             # 1. Prepare data for the prompt
             pred_label_str = "abnormal" if item.pred_label == 1 else "normal"
 
-            if item.image is None:
-                msg = "Input image is None"
+            if item.image_path is None:
+                msg = "Input image path is None"
                 raise ValueError(msg)  # noqa: TRY301
-            input_image_pil = to_pil_image(item.image)
+            input_image_pil = Image.open(item.image_path).convert("RGB")
             anomaly_map_pil = visualize_image_item(
                 item,  # type: ignore[reportUnknownReturnType]
                 **VISUALIZATION_CONFIG_KWARGS,
             )
+            use_text_normality = False
+            if self.allow_normal_description and len(self.normal_description) > 0:
+                use_text_normality = True
 
             # 2. Construct the multimodal prompt
             system_instruction = (
                 f"You are an expert in industrial anomaly detection in {self.dataset_category} images."
-                "Your task is to explain in a concise way (max 1 short sentence) why the provided image is "
-                f"classified as {pred_label_str}. "
                 "Use precise terms if possible to explain where or what is wrong with the product."
                 "Only explain the anomaly by describing what is wrong with the product not the image."
-                f"Always understand first the image and perspective of the {self.dataset_category} product image "
-                "before explaining the anomaly."
             )
-            user_prompt_parts: list[Any] = []
+            user_prompt_parts: list[Any] = [
+                f"Explain in a concise way, in 1 short sentence, what is {pred_label_str} in the input image of "
+                f"a {self.dataset_category}.",
+                "---",
+            ]
             if anomaly_map_pil is not None:
                 user_prompt_parts.extend(
                     [
                         "The input image and the predicted anomaly map are provided, where more red areas indicate a "
-                        "higher likelihood of anomaly.",
-                        "Be factual and base your explanation on the visual evidence but do not use the anomaly map "
-                        "in your explanation. Only use the anomaly map to understand the anomaly.",
+                        "higher likelihood of anomaly. Only use the anomaly map to understand the anomaly.",
                         "---",
                         "Input Image:",
                         input_image_pil,
@@ -158,7 +159,6 @@ class TextualAnomalyExplainer:
                 user_prompt_parts.extend(
                     [
                         "The input image is provided.",
-                        "Be factual and base your explanation on the visual evidence.",
                         "---",
                         "Input Image:",
                         input_image_pil,
@@ -172,12 +172,15 @@ class TextualAnomalyExplainer:
                     *self.normal_example_files,
                 ],
             )
-            if self.allow_normal_description and len(self.normal_description) > 0:
+            if use_text_normality:
                 user_prompt_parts.extend(
                     [
                         "---",
                         "The description of the product, image perspective and what is normal for this product is:",
                         *self.normal_description,
+                        "---",
+                        "Focus in your explanation on what is described to be normal and what you can see in the input "
+                        "image!",
                     ],
                 )
             user_prompt_parts.extend(
@@ -198,6 +201,7 @@ class TextualAnomalyExplainer:
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     response_modalities=["Text"],
+                    temperature=0.0,
                 ),
                 contents=user_prompt_parts,  # type: ignore[reportUnknownMemberType]
             )
