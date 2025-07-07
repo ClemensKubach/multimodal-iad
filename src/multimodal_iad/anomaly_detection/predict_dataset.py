@@ -101,7 +101,7 @@ class MultimodalPredictDataset(PredictDataset):
             image=image,
             depth_map=depth_map,
             image_path=str(image_filename),
-            depth_path=str(depth_filename) if depth_map else None,
+            depth_path=str(depth_filename) if depth_map is not None else None,
         )
 
     @property
