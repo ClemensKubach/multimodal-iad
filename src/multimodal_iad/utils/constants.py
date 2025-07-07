@@ -19,3 +19,12 @@ DATASETS_DIR.mkdir(exist_ok=True, parents=True)
 # Image dimensions
 RGB_IMAGE_DIMS = 3
 GRAYSCALE_IMAGE_DIMS = 2
+
+VISUALIZATION_CONFIG_KWARGS = {
+    "overlay_fields": [("image", ["anomaly_map", "gt_mask"])],
+    "overlay_fields_config": {
+        "anomaly_map": {"normalize": True, "colormap": True},
+        "gt_mask": {"mode": "contour", "color": (255, 255, 255), "alpha": 0.9},
+    },
+    "text_config": {"enable": False},
+}

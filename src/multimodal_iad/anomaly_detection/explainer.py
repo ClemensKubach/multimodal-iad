@@ -15,6 +15,8 @@ from google.genai import types
 from strenum import StrEnum
 from torchvision.transforms.functional import to_pil_image
 
+from multimodal_iad.utils.constants import VISUALIZATION_CONFIG_KWARGS
+
 logger = logging.getLogger(__name__)
 
 
@@ -112,12 +114,7 @@ class TextualAnomalyExplainer:
             input_image_pil = to_pil_image(item.image)
             anomaly_map_pil = visualize_image_item(
                 item,  # type: ignore[reportUnknownReturnType]
-                overlay_fields=[("image", ["anomaly_map", "gt_mask"])],
-                fields_config={
-                    "anomaly_map": {"normalize": True, "colormap": True},
-                    "gt_mask": {"mode": "contour", "color": (255, 255, 255), "alpha": 0.9},
-                },
-                text_config={"enable": False},
+                **VISUALIZATION_CONFIG_KWARGS,
             )
 
             # 2. Construct the multimodal prompt

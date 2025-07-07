@@ -46,7 +46,7 @@ from multimodal_iad.anomaly_detection.detector import (
     SupportedAdModels,
     SupportedDatamodules,
 )
-from multimodal_iad.utils.constants import DATASETS_DIR, GRAYSCALE_IMAGE_DIMS
+from multimodal_iad.utils.constants import DATASETS_DIR, GRAYSCALE_IMAGE_DIMS, VISUALIZATION_CONFIG_KWARGS
 
 logger = logging.getLogger(__name__)
 
@@ -194,12 +194,7 @@ class HeatmapWidget(FigureCanvas):
         if item is not None:
             visualization = visualize_image_item(
                 item,  # type: ignore[reportUnknownReturnType]
-                overlay_fields=[("image", ["anomaly_map", "gt_mask"])],
-                fields_config={
-                    "anomaly_map": {"normalize": True, "colormap": True},
-                    "gt_mask": {"mode": "contour", "color": (255, 255, 255), "alpha": 0.9},
-                },
-                text_config={"enable": False},
+                **VISUALIZATION_CONFIG_KWARGS,
             )
 
         self.figure.clear()
@@ -218,7 +213,7 @@ class HeatmapWidget(FigureCanvas):
             ax.set_xticks([])
             ax.set_yticks([])
         else:
-            ax.imshow(visualization)
+            ax.imshow(np.array(visualization))
             ax.axis("off")
 
         self.figure.tight_layout()
