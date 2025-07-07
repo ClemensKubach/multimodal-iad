@@ -41,7 +41,8 @@ class TextualAnomalyExplainer:
         dataset_category: str,
         datamodule: MVTecAD | MVTec3D | MVTecLOCO,
         num_normal_examples: int = 3,
-        model: SupportedLLMs = SupportedLLMs.GEMINI_2_5_FLASH_LITE,
+        model: SupportedLLMs = SupportedLLMs.GEMINI_2_5_FLASH,
+        allow_normal_description: bool = True,
     ) -> None:
         """Initialize the explainer.
 
@@ -51,6 +52,7 @@ class TextualAnomalyExplainer:
             num_normal_examples: The number of normal examples to include in the prompt.
             model: The model to use for the explanation. Currently only supports models part of the
                 Google "google-genai" api.
+            allow_normal_description: Whether to allow the normal description of the product to be used in the prompt.
 
         """
         self.dataset_category = dataset_category
@@ -60,6 +62,7 @@ class TextualAnomalyExplainer:
             msg = "TTS models are not supported for explanation. They only support audio output."
             raise ValueError(msg)
         self.model = model
+        self.allow_normal_description = allow_normal_description
 
         load_dotenv()
         api_key = os.environ.get("GEMINI_API_KEY")
@@ -70,6 +73,16 @@ class TextualAnomalyExplainer:
         self.client = genai.Client(api_key=api_key)
         random.seed(42)
         self.normal_example_files = self._upload_normal_samples()
+
+        if self.allow_normal_description:
+            normal_description_path = self.datamodule.root / self.dataset_category / "normal_description.txt"
+            if normal_description_path.exists():
+                with normal_description_path.open("r") as f:
+                    self.normal_description = f.read().splitlines()
+                logger.info("Normal description: %s", self.normal_description)
+            else:
+                logger.info("No normal description found at %s", normal_description_path)
+                self.normal_description = []
 
     def _get_normal_sample_paths(self) -> list[str]:
         """Get random normal sample paths from the training dataset."""
@@ -120,8 +133,9 @@ class TextualAnomalyExplainer:
             # 2. Construct the multimodal prompt
             system_instruction = (
                 f"You are an expert in industrial anomaly detection in {self.dataset_category} images."
-                "Your task is to explain in a concise way (max 1 sentences) why the provided image is "
-                f"classified as {pred_label_str} with a score of {pred_score_str} (of range 0-1). "
+                "Your task is to explain in a concise way (max 1 short sentence) why the provided image is "
+                f"classified as {pred_label_str}. "
+                "Use precise terms if possible to explain where or what is wrong with the product."
                 "Only explain the anomaly by describing what is wrong with the product not the image."
                 f"Always understand first the image and perspective of the {self.dataset_category} product image "
                 "before explaining the anomaly."
@@ -130,7 +144,7 @@ class TextualAnomalyExplainer:
             if anomaly_map_pil is not None:
                 user_prompt_parts.extend(
                     [
-                        "The input image and the predicted anomaly map are provided, where brighter areas indicate a "
+                        "The input image and the predicted anomaly map are provided, where more red areas indicate a "
                         "higher likelihood of anomaly.",
                         "Be factual and base your explanation on the visual evidence but do not use the anomaly map "
                         "in your explanation. Only use the anomaly map to understand the anomaly.",
@@ -157,9 +171,25 @@ class TextualAnomalyExplainer:
                     "---",
                     "For reference, here are some examples of ground truth normal images of the same product category:",
                     *self.normal_example_files,
+                ],
+            )
+            if self.allow_normal_description and len(self.normal_description) > 0:
+                user_prompt_parts.extend(
+                    [
+                        "---",
+                        "The description of the product, image perspective and what is normal for this product is:",
+                        *self.normal_description,
+                    ],
+                )
+            user_prompt_parts.extend(
+                [
                     "---",
                     f"Start your explanation with 'The {self.dataset_category} is {pred_label_str} because...'",
                 ],
+            )
+            logger.info(
+                "User prompt: %s",
+                [part if isinstance(part, str) else "IMAGE_PLACEHOLDER" for part in user_prompt_parts],
             )
 
             # 3. Generate explanation
