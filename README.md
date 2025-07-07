@@ -1,6 +1,6 @@
-# Multimodal-IAD
+# Multimodal Industrial Anomaly Detection Interface
 
-Multimodal System Providing Textual Explanations for Image Anomaly Detection
+Multimodal System Providing Textual Explanations for Image Anomaly Detection.
 
 
 ## Project Overview
@@ -12,6 +12,12 @@ The system offers:
 - Visual (pixel-level) and textual (LLM-based) explanations for anomaly detection results.
 - Support for various datasets (e.g., MVTec 2D and 3D, LOCO).
 - The core of the IAD is based on the `anomalib` library, utilizing the PatchCore model and an extension of it for multimodal inputs. Textual explanations are generated via Google's Gemini Vision models.
+
+Based on:
+- **anomalib** (≥2.0.0): Advanced anomaly detection library
+- **PyQt6**: GUI framework
+- **Development tools**:
+  - ruff (≥0.12.0): Python linter
 
 
 ## Getting Started
@@ -51,11 +57,3 @@ Maybe, fork it later.
 - Anomalib bug in f1_adaptive_threshold
 - Anomalib bug in saving model checkpoints at the correct location sometimes (loads wrong model sometimes)
 - Status bar not showing anymore
-
-
-## Major Dependencies
-
-- **anomalib** (≥2.0.0): Advanced anomaly detection library
-- **PyQt6**: GUI framework
-- **Development tools**:
-  - ruff (≥0.12.0): Python linter
