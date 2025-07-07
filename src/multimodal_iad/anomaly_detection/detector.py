@@ -187,7 +187,7 @@ class AnomalyDetector:
         first_dataloader_results = test_results[0]
         return dict(first_dataloader_results)
 
-    def predict_image(
+    def predict_image(  # noqa: C901, PLR0912
         self, sample: ImageItem | DepthItem | None = None, image_path: str | None = None
     ) -> NumpyImageItem | NumpyDepthItem | None:
         """Apply anomaly detection for a single image.

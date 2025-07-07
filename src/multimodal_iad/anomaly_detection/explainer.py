@@ -119,7 +119,6 @@ class TextualAnomalyExplainer:
         try:
             # 1. Prepare data for the prompt
             pred_label_str = "abnormal" if item.pred_label == 1 else "normal"
-            pred_score_str = f"{item.pred_score:.4f}" if item.pred_score is not None else "N/A"
 
             if item.image is None:
                 msg = "Input image is None"

@@ -56,7 +56,6 @@ class PatchcoreMultimodal(MemoryBankMixin, AnomalibModule):
         self.feature_extractor_configs = feature_extractor_configs
 
         if pre_processor:
-            # override the default pre-processor with a multimodal pre-processor and transform
             pre_processor = self._dynamic_default_pre_processor(feature_extractor_configs=feature_extractor_configs)
 
         super().__init__(
@@ -87,23 +86,19 @@ class PatchcoreMultimodal(MemoryBankMixin, AnomalibModule):
         norm_std = []
         rgb_norm_mean = [0.485, 0.456, 0.406]
         rgb_norm_std = [0.229, 0.224, 0.225]
-        # for config in feature_extractor_configs:
-        #     if config.channel_mode == "adjust_arch":
-        #         msg = "Adjusting the architecture is not yet implemented for the default pre-processor."
-        #         raise NotImplementedError(msg)
-        #     if config.modality_marker in (
-        #         FeatureExtractorModality.RGB.value.modality_marker,
-        #         FeatureExtractorModality.DEPTH.value.modality_marker,
-        #     ):
-        #         norm_mean.extend(rgb_norm_mean)
-        #         norm_std.extend(rgb_norm_std)
-        #     else:
-        #         msg = f"Mobility marker {config.modality_marker} is not yet implemented for the default pre-processor."
-        #         raise NotImplementedError(msg)
-        norm_mean.extend(rgb_norm_mean)
-        norm_std.extend(rgb_norm_std)
-        logger.info(f"CLEMENS Preprocessor uses norm_mean: {norm_mean}")
-        logger.info(f"CLEMENS Preprocessor uses norm_std: {norm_std}")
+        for config in feature_extractor_configs:
+            if config.channel_mode == "adjust_arch":
+                msg = "Adjusting the architecture is not yet implemented for the default pre-processor."
+                raise NotImplementedError(msg)
+            if config.modality_marker in (
+                FeatureExtractorModality.RGB.value.modality_marker,
+                FeatureExtractorModality.DEPTH.value.modality_marker,
+            ):
+                norm_mean.extend(rgb_norm_mean)
+                norm_std.extend(rgb_norm_std)
+                break  # all interpreted as rgb
+            msg = f"Mobility marker {config.modality_marker} is not yet implemented for the default pre-processor."
+            raise NotImplementedError(msg)
 
         if center_crop_size is not None:
             if center_crop_size[0] > image_size[0] or center_crop_size[1] > image_size[1]:

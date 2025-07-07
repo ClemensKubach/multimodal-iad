@@ -6,12 +6,15 @@ from typing import TYPE_CHECKING
 
 import torch
 from anomalib.data import InferenceBatch
-from anomalib.models.components import DynamicBufferMixin, KCenterGreedy, TimmFeatureExtractor
+from anomalib.models.components import DynamicBufferMixin, KCenterGreedy
 from anomalib.models.image.patchcore.anomaly_map import AnomalyMapGenerator
 from anomalib.models.image.patchcore.torch_model import PatchcoreModel
 from torch import nn
 from torch.nn import functional as F  # noqa: N812
 
+from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_timm import (
+    MultimodalTimmFeatureExtractor,
+)
 from multimodal_iad.anomaly_detection.components.feature_extractors.multimodal_utils import FeatureExtractorConfig
 
 if TYPE_CHECKING:
@@ -49,11 +52,11 @@ class PatchcoreMultimodalModel(DynamicBufferMixin, nn.Module):
 
         for config in self.feature_extractor_configs:
             self.feature_extractors.append(
-                TimmFeatureExtractor(  # MultimodalTimmFeatureExtractor(
+                MultimodalTimmFeatureExtractor(
                     backbone=config.backbone,
                     pre_trained=config.pre_trained,
                     layers=config.layers,
-                    # in_channels=len(config.modality_marker) if config.channel_mode == "adjust_arch" else None,
+                    in_channels=len(config.modality_marker) if config.channel_mode == "adjust_arch" else None,
                 ).eval()
             )
             if config.backbone != self.backbone:
