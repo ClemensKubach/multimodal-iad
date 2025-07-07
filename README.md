@@ -1,15 +1,16 @@
 # Multimodal Industrial Anomaly Detection Interface
 
-Multimodal System Providing Textual Explanations for Image Anomaly Detection.
+A multimodal system that generates **dynamic textual explanations** of image anomalies using **large language models (LLMs)**, making it well-suited for the open-ended nature of anomalies making them difficult to predefine.
+
+![Screenshot](./screenshot.png)
 
 
 ## Project Overview
-
 This project provides a graphical user interface (GUI) for Image Anomaly Detection (IAD). It is designed for quality inspection systems but is also useful for analyzing IAD algorithms.
 
 The system offers:
 - A user-friendly GUI to view an input image, the resulting anomaly map, and a textual explanation of the anomaly.
-- Visual (pixel-level) and textual (LLM-based) explanations for anomaly detection results.
+- **Visual** (pixel-level) and **textual** (LLM-based) explanations for anomaly detection results. The explanations are generated dynamically based on, i.e., the input image and the anomaly map.
 - Support for various datasets (e.g., MVTec 2D and 3D, LOCO).
 - The core of the IAD is based on the `anomalib` library, utilizing the PatchCore model and an extension of it for multimodal inputs. Textual explanations are generated via Google's Gemini Vision models.
 
