@@ -36,7 +36,7 @@ Based on:
 
 ### Installation
 ```bash
-git clone https://github.com/open-edge-platform/multimodal-iad.git
+git clone https://github.com/ClemensKubach/multimodal-iad.git
 cd multimodal-iad
 ```
 
